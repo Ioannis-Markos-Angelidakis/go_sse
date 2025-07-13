@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Grid, Container, CircularProgress } from '@mui/material';
-import axios from '../../api/axios';
+import axios, { baseURL } from '../../api/axios';
 import { useAuth } from '../context/AuthContext';
 import TaskForm from './TaskForm';
 import TaskSection from './TaskSection';
@@ -17,8 +17,8 @@ export default function DashboardPage() {
         const fetchTasks = async () => {
             try {
                 const [myTasks, publicTasks] = await Promise.all([
-                    axios.get('http://192.168.0.13:5000/tasks'),
-                    axios.get('http://192.168.0.13:5000/public-tasks'),
+                    axios.get('/tasks'),
+                    axios.get('/public-tasks'),
                 ]);
 
                 const enrichedPublicTasks = publicTasks.data.map(task => ({
@@ -40,7 +40,7 @@ export default function DashboardPage() {
 
         fetchTasks();
 
-        const source = new EventSource('http://192.168.0.13:5000/events', {
+        const source = new EventSource(`${baseURL}/events`, {
             withCredentials: true
         });
 
@@ -94,7 +94,7 @@ export default function DashboardPage() {
 
     const handleCreateTask = async (newTask) => {
         try {
-            const response = await axios.post('http://192.168.0.13:5000/tasks', newTask);
+            const response = await axios.post('/tasks', newTask);
             setTasks(prev => [...prev, response.data]);
         } catch (error) {
             console.error('Failed to create task:', error);
@@ -103,7 +103,7 @@ export default function DashboardPage() {
 
     const handleUpdateTask = async (id, updates) => {
         try {
-            await axios.put(`http://192.168.0.13:5000/tasks/${id}`, updates);
+            await axios.put(`/tasks/${id}`, updates);
         } catch (error) {
             console.error('Failed to update task:', error);
         }
@@ -111,7 +111,7 @@ export default function DashboardPage() {
 
     const handleDeleteTask = async (id) => {
         try {
-            await axios.delete(`http://192.168.0.13:5000/tasks/${id}`);
+            await axios.delete(`/tasks/${id}`);
         } catch (error) {
             console.error('Failed to delete task:', error);
         }

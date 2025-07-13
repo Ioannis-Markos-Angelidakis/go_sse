@@ -4,16 +4,19 @@ import (
 	"backend/broker"
 	"backend/prisma/db"
 	"backend/routes"
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/joho/godotenv"
 )
 
 var client = db.NewClient()
 var jwtSecret []byte
-var taskBroker = broker.NewBroker() // Changed variable name
+var taskBroker = broker.NewBroker()
 
 func main() {
 	err := godotenv.Load()
@@ -21,7 +24,16 @@ func main() {
 		panic("Error loading .env file")
 	}
 
-	// Load JWT secret from environment
+	port := os.Getenv("BACKEND_PORT")
+	if port == "" {
+		panic("Error loading BACKEND_PORT from .env")
+	}
+
+	host := os.Getenv("HOST")
+	if host == "" {
+		panic("Error loading HOST from .env")
+	}
+
 	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	if len(jwtSecret) == 0 {
 		panic("JWT_SECRET environment variable not set")
@@ -29,22 +41,26 @@ func main() {
 
 	app := fiber.New()
 
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://192.168.0.13:3000",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowCredentials: true,
-	}))
+	app.Use(
+		limiter.New(limiter.Config{
+			Max:               20,
+			Expiration:        30 * time.Second,
+			LimiterMiddleware: limiter.SlidingWindow{},
+		}),
+		cors.New(cors.Config{
+			AllowOrigins:     fmt.Sprintf("http://%s", host),
+			AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+			AllowCredentials: true,
+		}))
 
 	if err := client.Prisma.Connect(); err != nil {
 		panic(err)
 	}
 	defer client.Prisma.Disconnect()
 
-	routes.SetupRoutes(app, client, taskBroker, jwtSecret) // Updated variable name
+	routes.SetupRoutes(app, client, taskBroker, jwtSecret)
 
-	port := os.Getenv("BACKEND_PORT")
-	if port == "" {
-		port = "5000"
-	}
-	app.Listen("192.168.0.13:" + port)
+	app.Listen(fmt.Sprintf("%s:%s", host, port))
 }
+
+//go run github.com/steebchen/prisma-client-go generate

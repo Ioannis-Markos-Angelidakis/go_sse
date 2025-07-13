@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const response = await axios.get('http://192.168.0.13:5000/me');
+                const response = await axios.get('/me');
                 const userData = response.data.user;
                 setUser(userData);
                 sessionStorage.setItem('user', JSON.stringify(userData));
