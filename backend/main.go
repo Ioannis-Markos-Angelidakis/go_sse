@@ -11,6 +11,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
 )
 
@@ -42,6 +44,10 @@ func main() {
 	app := fiber.New()
 
 	app.Use(
+		recover.New(),
+		logger.New(logger.Config{
+			Format: "[${ip}]:${port} ${status} - ${method} ${path}\n",
+		}),
 		limiter.New(limiter.Config{
 			Max:               20,
 			Expiration:        30 * time.Second,
