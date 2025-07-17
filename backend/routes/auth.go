@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"backend/database"
 	"backend/prisma/db"
 	"context"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
+func Register(c *fiber.Ctx, jwtSecret []byte) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -23,7 +24,7 @@ func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 
 	// Check if user exists
 	ctx := context.Background()
-	existingUser, err := client.User.FindUnique(
+	existingUser, err := database.Client().User.FindUnique(
 		db.User.Email.Equals(input.Email),
 	).Exec(ctx)
 	if err == nil && existingUser != nil {
@@ -40,7 +41,7 @@ func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 	}
 
 	// Create user
-	user, err := client.User.CreateOne(
+	user, err := database.Client().User.CreateOne(
 		db.User.Email.Set(input.Email),
 		db.User.Password.Set(string(hashedPassword)),
 	).Exec(ctx)
@@ -63,7 +64,7 @@ func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 
 	expValue := claims["exp"].(int64)
 
-	_, err = client.ActiveSessions.CreateOne(
+	_, err = database.Client().ActiveSessions.CreateOne(
 		db.ActiveSessions.User.Link(
 			db.User.ID.Equals(user.ID),
 		),
@@ -84,7 +85,7 @@ func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 	})
 }
 
-func Login(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
+func Login(c *fiber.Ctx, jwtSecret []byte) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -95,7 +96,7 @@ func Login(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 	}
 
 	ctx := context.Background()
-	user, err := client.User.FindUnique(
+	user, err := database.Client().User.FindUnique(
 		db.User.Email.Equals(input.Email),
 	).Exec(ctx)
 	if err == db.ErrNotFound {
@@ -124,7 +125,7 @@ func Login(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 
 	expValue := claims["exp"].(int64)
 
-	_, err = client.ActiveSessions.CreateOne(
+	_, err = database.Client().ActiveSessions.CreateOne(
 		db.ActiveSessions.User.Link(
 			db.User.ID.Equals(user.ID),
 		),
@@ -151,7 +152,7 @@ func setAuthCookie(c *fiber.Ctx, token string) {
 	cookie.Value = token
 	cookie.Expires = time.Now().Add(72 * time.Hour)
 	cookie.HTTPOnly = true
-	cookie.Secure = false // Set to true in production
+	cookie.Secure = false
 	cookie.SameSite = "Lax"
 	c.Cookie(cookie)
 }
@@ -160,7 +161,7 @@ func clearAuthCookie(c *fiber.Ctx) {
 	c.ClearCookie("auth")
 }
 
-func Logout(c *fiber.Ctx, client *db.PrismaClient) error {
+func Logout(c *fiber.Ctx) error {
 	ctx := context.Background()
 
 	userID, ok := c.Locals("userID").(float64)
@@ -174,7 +175,7 @@ func Logout(c *fiber.Ctx, client *db.PrismaClient) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid session UUID in JWT"})
 	}
 
-	_, err := client.ActiveSessions.FindMany(
+	_, err := database.Client().ActiveSessions.FindMany(
 		db.ActiveSessions.UserID.Equals(int(userID)),
 		db.ActiveSessions.SessionUUID.Equals(sessionUUID),
 	).Delete().Exec(ctx)
@@ -190,11 +191,11 @@ func Logout(c *fiber.Ctx, client *db.PrismaClient) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
-func GetUserProfile(c *fiber.Ctx, client *db.PrismaClient) error {
+func GetUserProfile(c *fiber.Ctx) error {
 	userID := int(c.Locals("userID").(float64))
 
 	ctx := context.Background()
-	user, err := client.User.FindUnique(
+	user, err := database.Client().User.FindUnique(
 		db.User.ID.Equals(userID),
 	).Exec(ctx)
 

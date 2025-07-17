@@ -2,6 +2,7 @@ package main
 
 import (
 	"backend/broker"
+	"backend/database"
 	"backend/prisma/db"
 	"backend/routes"
 	"fmt"
@@ -59,12 +60,9 @@ func main() {
 			AllowCredentials: true,
 		}))
 
-	if err := client.Prisma.Connect(); err != nil {
-		panic(err)
-	}
-	defer client.Prisma.Disconnect()
+	defer database.Close()
 
-	routes.SetupRoutes(app, client, taskBroker, jwtSecret)
+	routes.SetupRoutes(app, taskBroker, jwtSecret)
 
 	app.Listen(fmt.Sprintf("%s:%s", host, port))
 }

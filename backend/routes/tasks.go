@@ -2,15 +2,16 @@ package routes
 
 import (
 	"backend/broker"
+	"backend/database"
 	"backend/prisma/db"
 	"context"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func GetPublicTasks(c *fiber.Ctx, client *db.PrismaClient) error {
+func GetPublicTasks(c *fiber.Ctx) error {
 	ctx := context.Background()
-	tasks, err := client.Task.FindMany(
+	tasks, err := database.Client().Task.FindMany(
 		db.Task.Public.Equals(true),
 	).With(db.Task.User.Fetch()).Exec(ctx)
 
@@ -20,11 +21,11 @@ func GetPublicTasks(c *fiber.Ctx, client *db.PrismaClient) error {
 	return c.JSON(tasks)
 }
 
-func GetTasks(c *fiber.Ctx, client *db.PrismaClient) error {
+func GetTasks(c *fiber.Ctx) error {
 	userID := int(c.Locals("userID").(float64))
 
 	ctx := context.Background()
-	tasks, err := client.Task.FindMany(
+	tasks, err := database.Client().Task.FindMany(
 		db.Task.UserID.Equals(userID),
 	).Exec(ctx)
 
@@ -34,7 +35,7 @@ func GetTasks(c *fiber.Ctx, client *db.PrismaClient) error {
 	return c.JSON(tasks)
 }
 
-func CreateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error {
+func CreateTask(c *fiber.Ctx, brk *broker.Broker) error {
 	userID := int(c.Locals("userID").(float64))
 
 	var input struct {
@@ -48,7 +49,7 @@ func CreateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 	}
 
 	ctx := context.Background()
-	task, err := client.Task.CreateOne(
+	task, err := database.Client().Task.CreateOne(
 		db.Task.Title.Set(input.Title),
 		db.Task.User.Link(db.User.ID.Equals(userID)),
 		db.Task.Content.Set(input.Content),
@@ -71,7 +72,7 @@ func CreateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 	return c.JSON(task)
 }
 
-func UpdateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error {
+func UpdateTask(c *fiber.Ctx, brk *broker.Broker) error {
 	userID := int(c.Locals("userID").(float64))
 	taskID, err := c.ParamsInt("id")
 	if err != nil {
@@ -90,7 +91,7 @@ func UpdateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 	}
 
 	ctx := context.Background()
-	task, err := client.Task.FindUnique(
+	task, err := database.Client().Task.FindUnique(
 		db.Task.ID.Equals(taskID),
 	).Exec(ctx)
 
@@ -112,7 +113,7 @@ func UpdateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 		updateParams = append(updateParams, db.Task.Public.Set(*input.Public))
 	}
 
-	updatedTask, err := client.Task.FindUnique(
+	updatedTask, err := database.Client().Task.FindUnique(
 		db.Task.ID.Equals(taskID),
 	).Update(updateParams...).Exec(ctx)
 
@@ -130,7 +131,7 @@ func UpdateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 	return c.JSON(updatedTask)
 }
 
-func DeleteTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error {
+func DeleteTask(c *fiber.Ctx, brk *broker.Broker) error {
 	userID := int(c.Locals("userID").(float64))
 	taskID, err := c.ParamsInt("id")
 	if err != nil {
@@ -138,7 +139,7 @@ func DeleteTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 	}
 
 	ctx := context.Background()
-	task, err := client.Task.FindUnique(
+	task, err := database.Client().Task.FindUnique(
 		db.Task.ID.Equals(taskID),
 	).Exec(ctx)
 
@@ -146,7 +147,7 @@ func DeleteTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Task not found"})
 	}
 
-	_, err = client.Task.FindUnique(
+	_, err = database.Client().Task.FindUnique(
 		db.Task.ID.Equals(taskID),
 	).Delete().Exec(ctx)
 
