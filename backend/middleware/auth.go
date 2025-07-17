@@ -20,7 +20,8 @@ func AuthMiddleware(jwtSecret []byte) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
 		}
 
-		c.Locals("userID", claims["userID"])
+		c.Locals(("userID"), claims["userID"])
+		c.Locals("sessionUUID", claims["sessionUUID"])
 		return c.Next()
 	}
 }

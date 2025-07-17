@@ -68,5 +68,3 @@ func main() {
 
 	app.Listen(fmt.Sprintf("%s:%s", host, port))
 }
-
-//go run github.com/steebchen/prisma-client-go generate

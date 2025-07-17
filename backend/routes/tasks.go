@@ -50,9 +50,9 @@ func CreateTask(c *fiber.Ctx, client *db.PrismaClient, brk *broker.Broker) error
 	ctx := context.Background()
 	task, err := client.Task.CreateOne(
 		db.Task.Title.Set(input.Title),
+		db.Task.User.Link(db.User.ID.Equals(userID)),
 		db.Task.Content.Set(input.Content),
 		db.Task.Public.Set(input.Public),
-		db.Task.User.Link(db.User.ID.Equals(userID)),
 	).Exec(ctx)
 
 	if err != nil {

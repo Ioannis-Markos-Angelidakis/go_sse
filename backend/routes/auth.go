@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -47,10 +48,12 @@ func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Cannot create user"})
 	}
 
-	// Create JWT token
+	sessionUUID := uuid.New()
+
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["userID"] = user.ID
+	claims["sessionUUID"] = sessionUUID.String()
 	claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
 
 	t, err := token.SignedString(jwtSecret)
@@ -58,10 +61,21 @@ func Register(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Cannot generate token"})
 	}
 
-	// Set cookie
+	expValue := claims["exp"].(int64)
+
+	_, err = client.ActiveSessions.CreateOne(
+		db.ActiveSessions.User.Link(
+			db.User.ID.Equals(user.ID),
+		),
+		db.ActiveSessions.SessionUUID.Set(sessionUUID.String()),
+		db.ActiveSessions.Exp.Set(time.Unix(expValue, 0)),
+	).Exec(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create session"})
+	}
+
 	setAuthCookie(c, t)
 
-	// Return user info
 	return c.JSON(fiber.Map{
 		"user": fiber.Map{
 			"id":    user.ID,
@@ -80,7 +94,6 @@ func Login(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	// Find user
 	ctx := context.Background()
 	user, err := client.User.FindUnique(
 		db.User.Email.Equals(input.Email),
@@ -92,15 +105,16 @@ func Login(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
-	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid credentials"})
 	}
 
-	// Create JWT token
+	sessionUUID := uuid.New()
+
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["userID"] = user.ID
+	claims["sessionUUID"] = sessionUUID.String()
 	claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
 
 	t, err := token.SignedString(jwtSecret)
@@ -108,10 +122,21 @@ func Login(c *fiber.Ctx, client *db.PrismaClient, jwtSecret []byte) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Cannot generate token"})
 	}
 
-	// Set cookie
+	expValue := claims["exp"].(int64)
+
+	_, err = client.ActiveSessions.CreateOne(
+		db.ActiveSessions.User.Link(
+			db.User.ID.Equals(user.ID),
+		),
+		db.ActiveSessions.SessionUUID.Set(sessionUUID.String()),
+		db.ActiveSessions.Exp.Set(time.Unix(expValue, 0)),
+	).Exec(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create session"})
+	}
+
 	setAuthCookie(c, t)
 
-	// Return user info
 	return c.JSON(fiber.Map{
 		"user": fiber.Map{
 			"id":    user.ID,
@@ -135,7 +160,28 @@ func clearAuthCookie(c *fiber.Ctx) {
 	c.ClearCookie("auth")
 }
 
-func Logout(c *fiber.Ctx) error {
+func Logout(c *fiber.Ctx, client *db.PrismaClient) error {
+	ctx := context.Background()
+
+	userID, ok := c.Locals("userID").(float64)
+
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid user ID in JWT"})
+	}
+
+	sessionUUID, ok := c.Locals("sessionUUID").(string)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid session UUID in JWT"})
+	}
+
+	_, err := client.ActiveSessions.FindMany(
+		db.ActiveSessions.UserID.Equals(int(userID)),
+		db.ActiveSessions.SessionUUID.Equals(sessionUUID),
+	).Delete().Exec(ctx)
+	if err != nil {
+		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{"error": "Failed to delete session"})
+	}
+
 	clearAuthCookie(c)
 
 	// Close the SSE connection by aborting the context

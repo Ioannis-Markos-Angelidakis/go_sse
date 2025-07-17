@@ -12,6 +12,20 @@ model User {
     email    String @unique
     password String
     tasks    Task[]
+
+    active_sessions active_sessions[]
+}
+
+model active_sessions {
+    id           Int      @id @default(autoincrement())
+    user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    user_id      Int
+    session_uuid String   @unique
+    exp          DateTime
+
+    @@unique([user_id, session_uuid], name: "user_session_unique")
+    @@index([user_id, session_uuid])
+    @@index([exp])
 }
 
 model Task {
@@ -20,6 +34,8 @@ model Task {
     content   String?
     public    Boolean? @default(false)
     completed Boolean  @default(false)
-    userId    Int
     user      User     @relation(fields: [userId], references: [id])
+    userId    Int
 }
+
+//go run github.com/steebchen/prisma-client-go generate

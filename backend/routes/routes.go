@@ -20,7 +20,9 @@ func SetupRoutes(app *fiber.App, client *db.PrismaClient, broker *broker.Broker,
 	app.Get("/me", authMiddleware, func(c *fiber.Ctx) error {
 		return GetUserProfile(c, client)
 	})
-	app.Post("/logout", Logout)
+	app.Post("/logout", authMiddleware, func(c *fiber.Ctx) error {
+		return Logout(c, client)
+	})
 	app.Get("/events", authMiddleware, func(c *fiber.Ctx) error {
 		return SSEHandler(c, broker)
 	})
