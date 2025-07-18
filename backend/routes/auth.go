@@ -34,13 +34,11 @@ func Register(c *fiber.Ctx, jwtSecret []byte) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Cannot hash password"})
 	}
 
-	// Create user
 	user, err := database.Client().User.CreateOne(
 		db.User.Email.Set(input.Email),
 		db.User.Password.Set(string(hashedPassword)),

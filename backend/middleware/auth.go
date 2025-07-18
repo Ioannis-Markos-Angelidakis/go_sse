@@ -1,8 +1,12 @@
 package middleware
 
 import (
+	"backend/database"
+	"backend/prisma/db"
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
@@ -20,8 +24,31 @@ func AuthMiddleware(jwtSecret []byte) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
 		}
 
+		sessionUUID, ok := claims["sessionUUID"].(string)
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid session UUID in token"})
+		}
+
+		ctx := context.Background()
+		session, err := database.Client().ActiveSessions.FindUnique(
+			db.ActiveSessions.SessionUUID.Equals(sessionUUID),
+		).Exec(ctx)
+		if err == db.ErrNotFound {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Session not found"})
+		}
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
+		}
+
+		if time.Now().After(session.Exp) {
+			database.Client().ActiveSessions.FindUnique(
+				db.ActiveSessions.SessionUUID.Equals(sessionUUID),
+			).Delete().Exec(ctx)
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Session expired"})
+		}
+
 		c.Locals(("userID"), claims["userID"])
-		c.Locals("sessionUUID", claims["sessionUUID"])
+		c.Locals("sessionUUID", sessionUUID)
 		return c.Next()
 	}
 }
