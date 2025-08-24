@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
@@ -14,12 +15,17 @@ import (
 
 func Register(c *fiber.Ctx, jwtSecret []byte) error {
 	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email    string `json:"email" validate:"required,email"`
+		Password string `json:"password" validate:"required,min=5,max=85"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	json_validator := validator.New()
+	if err := json_validator.Struct(input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// Check if user exists

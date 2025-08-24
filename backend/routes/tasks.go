@@ -6,6 +6,7 @@ import (
 	"backend/prisma/db"
 	"context"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -39,13 +40,18 @@ func CreateTask(c *fiber.Ctx, brk *broker.Broker) error {
 	userID := int(c.Locals("userID").(float64))
 
 	var input struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
-		Public  bool   `json:"public"`
+		Title   string `json:"title" validate:"required,min=3,max=30"`
+		Content string `json:"content" validate:"required,min=3,max=250"`
+		Public  bool   `json:"public" validate:"boolean"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	json_validate := validator.New()
+	if err := json_validate.Struct(input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	ctx := context.Background()
@@ -80,14 +86,19 @@ func UpdateTask(c *fiber.Ctx, brk *broker.Broker) error {
 	}
 
 	var input struct {
-		Title     *string `json:"title"`
-		Content   *string `json:"content"`
-		Completed *bool   `json:"completed"`
-		Public    *bool   `json:"public"`
+		Title     *string `json:"title" validate:"min=3,max=30"`
+		Content   *string `json:"content" validate:"required,min=3,max=250"`
+		Completed *bool   `json:"completed" validate:"boolean"`
+		Public    *bool   `json:"public" validate:"boolean"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	json_validate := validator.New()
+	if err := json_validate.Struct(input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	ctx := context.Background()
